@@ -127,6 +127,7 @@ jobs:
         run: kubectl kustomize infra/kubernetes > /tmp/library-manifests.yaml
 
       - name: Deploy to Kubernetes
+        shell: bash
         run: kubectl apply -k infra/kubernetes
 
       - name: Wait for rollouts
