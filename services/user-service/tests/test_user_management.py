@@ -25,14 +25,14 @@ def override_get_db():
     finally:
         db.close()
 
-
-app.dependency_overrides[get_db] = override_get_db
 users_routes.settings.INTERNAL_SERVICE_TOKEN = "test-internal-token"
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def database():
+    previous_override = app.dependency_overrides.get(get_db)
+    app.dependency_overrides[get_db] = override_get_db
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     admin = User(email="admin@example.com", password_hash=hash_password("password"), full_name="Main Admin", role=UserRole.ADMIN)
@@ -46,6 +46,10 @@ def database():
     yield {"admin": admin, "librarian": librarian, "student": student}
     db.close()
     Base.metadata.drop_all(bind=engine)
+    if previous_override is None:
+        app.dependency_overrides.pop(get_db, None)
+    else:
+        app.dependency_overrides[get_db] = previous_override
 
 
 def auth_header(user):
