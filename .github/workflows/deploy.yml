@@ -1,0 +1,147 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  NAMESPACE: library
+
+jobs:
+  deploy:
+    name: Build and deploy
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, minikube]
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image references
+        id: images
+        shell: bash
+        run: |
+          image_tag="${{ github.event.workflow_run.head_sha }}"
+          echo "tag=$image_tag" >> "$GITHUB_OUTPUT"
+          echo "user_service=${{ env.REGISTRY }}/${{ github.repository }}/user-service:$image_tag" >> "$GITHUB_OUTPUT"
+          echo "book_service=${{ env.REGISTRY }}/${{ github.repository }}/book-service:$image_tag" >> "$GITHUB_OUTPUT"
+          echo "loan_service=${{ env.REGISTRY }}/${{ github.repository }}/loan-service:$image_tag" >> "$GITHUB_OUTPUT"
+          echo "frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:$image_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push user-service
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/user-service
+          push: true
+          tags: ${{ steps.images.outputs.user_service }}
+
+      - name: Build and push book-service
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/book-service
+          push: true
+          tags: ${{ steps.images.outputs.book_service }}
+
+      - name: Build and push loan-service
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/loan-service
+          push: true
+          tags: ${{ steps.images.outputs.loan_service }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.images.outputs.frontend }}
+
+      - name: Create runtime Secrets
+        shell: bash
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          USER_SERVICE_SECRET_KEY: ${{ secrets.USER_SERVICE_SECRET_KEY }}
+          BOOK_SERVICE_SECRET_KEY: ${{ secrets.BOOK_SERVICE_SECRET_KEY }}
+          LOAN_SERVICE_SECRET_KEY: ${{ secrets.LOAN_SERVICE_SECRET_KEY }}
+          INTERNAL_SERVICE_TOKEN: ${{ secrets.INTERNAL_SERVICE_TOKEN }}
+        run: |
+          test -n "$POSTGRES_USER"
+          test -n "$POSTGRES_PASSWORD"
+          test -n "$USER_SERVICE_SECRET_KEY"
+          test -n "$BOOK_SERVICE_SECRET_KEY"
+          test -n "$LOAN_SERVICE_SECRET_KEY"
+          test -n "$INTERNAL_SERVICE_TOKEN"
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label namespace "$NAMESPACE" kubernetes.io/metadata.name="$NAMESPACE" --overwrite
+          kubectl create secret generic postgres-secret -n "$NAMESPACE" \
+            --from-literal=POSTGRES_USER="$POSTGRES_USER" \
+            --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic user-service-secret -n "$NAMESPACE" \
+            --from-literal=SECRET_KEY="$USER_SERVICE_SECRET_KEY" \
+            --from-literal=INTERNAL_SERVICE_TOKEN="$INTERNAL_SERVICE_TOKEN" \
+            --from-literal=DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/user_db" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic book-service-secret -n "$NAMESPACE" \
+            --from-literal=SECRET_KEY="$BOOK_SERVICE_SECRET_KEY" \
+            --from-literal=INTERNAL_SERVICE_TOKEN="$INTERNAL_SERVICE_TOKEN" \
+            --from-literal=DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/book_db" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic loan-service-secret -n "$NAMESPACE" \
+            --from-literal=SECRET_KEY="$LOAN_SERVICE_SECRET_KEY" \
+            --from-literal=INTERNAL_SERVICE_TOKEN="$INTERNAL_SERVICE_TOKEN" \
+            --from-literal=DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/loan_db" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Set Kubernetes image tags
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.images.outputs.tag }}
+        run: |
+          sed -i "s#image: library-user-service:.*#image: ${{ env.REGISTRY }}/${{ github.repository }}/user-service:$IMAGE_TAG#" infra/kubernetes/services/user-service/deployment.yaml
+          sed -i "s#image: library-book-service:.*#image: ${{ env.REGISTRY }}/${{ github.repository }}/book-service:$IMAGE_TAG#" infra/kubernetes/services/book-service/deployment.yaml
+          sed -i "s#image: library-loan-service:.*#image: ${{ env.REGISTRY }}/${{ github.repository }}/loan-service:$IMAGE_TAG#" infra/kubernetes/services/loan-service/deployment.yaml
+          sed -i "s#image: library-frontend:.*#image: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:$IMAGE_TAG#" infra/kubernetes/frontend-deployment.yaml
+
+      - name: Validate Kubernetes manifests
+        shell: bash
+        run: kubectl kustomize infra/kubernetes > /tmp/library-manifests.yaml
+
+      - name: Deploy to Kubernetes
+        run: kubectl apply -k infra/kubernetes
+
+      - name: Wait for rollouts
+        shell: bash
+        run: |
+          kubectl rollout status statefulset/postgres -n "$NAMESPACE" --timeout=5m
+          kubectl rollout status deployment/redis -n "$NAMESPACE" --timeout=5m
+          kubectl rollout status deployment/user-service -n "$NAMESPACE" --timeout=5m
+          kubectl rollout status deployment/book-service -n "$NAMESPACE" --timeout=5m
+          kubectl rollout status deployment/loan-service -n "$NAMESPACE" --timeout=5m
+          kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=5m
+
+      - name: Run health checks
+        shell: bash
+        run: |
+          kubectl run health-check --rm --restart=Never -n "$NAMESPACE" \
+            --image=curlimages/curl:8.10.1 -- \
+            sh -c 'set -e; curl -fsS http://user-service:8000/health; curl -fsS http://user-service:8000/health/ready; curl -fsS http://book-service:8001/health; curl -fsS http://book-service:8001/health/ready; curl -fsS http://loan-service:8002/health; curl -fsS http://loan-service:8002/health/ready; curl -fsS http://frontend:3000/health'

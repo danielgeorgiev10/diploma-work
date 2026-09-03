@@ -1,0 +1,255 @@
+version: '3.9'
+
+services:
+  # ============================================
+  # Database Services
+  # ============================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: library-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-libraryuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-librarypass}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - library-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-libraryuser} -d ${POSTGRES_DB:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ============================================
+  # Cache Service
+  # ============================================
+  
+  redis:
+    image: redis:7-alpine
+    container_name: library-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - library-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ============================================
+  # Microservices
+  # ============================================
+  
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      # App Config
+      APP_NAME: "User Service"
+      DEBUG: ${DEBUG:-False}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8000
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-libraryuser}:${POSTGRES_PASSWORD:-librarypass}@postgres:5432/user_db
+      
+      # JWT
+      SECRET_KEY: ${USER_SERVICE_SECRET_KEY:-user-service-secret-key-change-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-internal-service-token-change-in-development}
+      LOAN_SERVICE_URL: http://loan-service:8002
+    ports:
+      - "${USER_SERVICE_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - library-network
+    volumes:
+      - ./services/user-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  book-service:
+    build:
+      context: ./services/book-service
+      dockerfile: Dockerfile
+    container_name: book-service
+    environment:
+      # App Config
+      APP_NAME: "Book Service"
+      DEBUG: ${DEBUG:-False}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8001
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-libraryuser}:${POSTGRES_PASSWORD:-librarypass}@postgres:5432/book_db
+      
+      # JWT
+      SECRET_KEY: ${BOOK_SERVICE_SECRET_KEY:-book-service-secret-key-change-in-production}
+      ALGORITHM: HS256
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/1
+      
+      # Inter-service Communication
+      USER_SERVICE_URL: http://user-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-internal-service-token-change-in-development}
+    ports:
+      - "${BOOK_SERVICE_PORT:-8001}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    networks:
+      - library-network
+    volumes:
+      - ./services/book-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  loan-service:
+    build:
+      context: ./services/loan-service
+      dockerfile: Dockerfile
+    container_name: loan-service
+    environment:
+      # App Config
+      APP_NAME: "Loan Service"
+      DEBUG: ${DEBUG:-False}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8002
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-libraryuser}:${POSTGRES_PASSWORD:-librarypass}@postgres:5432/loan_db
+      
+      # JWT
+      SECRET_KEY: ${LOAN_SERVICE_SECRET_KEY:-loan-service-secret-key-change-in-production}
+      ALGORITHM: HS256
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/2
+      
+      # Inter-service Communication
+      USER_SERVICE_URL: http://user-service:8000
+      BOOK_SERVICE_URL: http://book-service:8001
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-internal-service-token-change-in-development}
+    ports:
+      - "${LOAN_SERVICE_PORT:-8002}:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      book-service:
+        condition: service_healthy
+    networks:
+      - library-network
+    volumes:
+      - ./services/loan-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ============================================
+  # Frontend Service
+  # ============================================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: library-frontend
+    environment:
+      REACT_APP_API_BASE_URL: http://user-service:8000
+      REACT_APP_USER_SERVICE_URL: http://user-service:8000
+      REACT_APP_BOOK_SERVICE_URL: http://book-service:8001
+      REACT_APP_LOAN_SERVICE_URL: http://loan-service:8002
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      book-service:
+        condition: service_healthy
+      loan-service:
+        condition: service_healthy
+    networks:
+      - library-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+# ============================================
+# Networks
+# ============================================
+
+networks:
+  library-network:
+    driver: bridge
+    name: library-network
+
+# ============================================
+# Volumes
+# ============================================
+
+volumes:
+  postgres_data:
+    name: library_postgres_data
+  redis_data:
+    name: library_redis_data

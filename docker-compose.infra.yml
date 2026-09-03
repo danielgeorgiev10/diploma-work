@@ -1,0 +1,46 @@
+version: '3.9'
+
+# Development Docker Compose (hot reload with code volumes)
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: library-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-libraryuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-librarypass}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - library-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U libraryuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: library-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - library-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  library-network:
+    driver: bridge

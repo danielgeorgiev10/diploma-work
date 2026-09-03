@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: library
+data:
+  01-init-dbs.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "Creating databases for microservices..."
+    
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE user_db;
+      GRANT ALL PRIVILEGES ON DATABASE user_db TO "$POSTGRES_USER";
+      
+      CREATE DATABASE book_db;
+      GRANT ALL PRIVILEGES ON DATABASE book_db TO "$POSTGRES_USER";
+      
+      CREATE DATABASE loan_db;
+      GRANT ALL PRIVILEGES ON DATABASE loan_db TO "$POSTGRES_USER";
+    EOSQL
+    
+    echo "Databases created successfully!"

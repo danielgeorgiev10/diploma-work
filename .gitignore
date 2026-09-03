@@ -1,0 +1,140 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv
+env.bak/
+venv.bak/
+
+# Testing
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+*.iml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.prod
+.env.dev
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Kubernetes
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# Logs
+*.log
+logs/
+*.out
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node (if used in any frontend components)
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# IDE temp files
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+
+# CI/CD
+.github/workflows/temp*
+
+# Secrets and sensitive data
+**/secrets/
+**/sensitive/
+*.pem
+*.key
+
+# Documentation
+*.md
+
+# Test / local SQLite databases
+*.db
+*.sqlite
+*.sqlite3

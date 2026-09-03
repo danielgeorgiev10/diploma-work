@@ -1,0 +1,24 @@
+.books-management-page,
+.loans-view-page {
+  max-width: 1200px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.btn-group .btn {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-group {
+    flex-direction: column;
+  }
+}

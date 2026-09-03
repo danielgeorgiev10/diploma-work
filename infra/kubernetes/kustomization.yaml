@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - frontend-deployment.yaml
+  - services/user-service/serviceaccount.yaml
+  - services/user-service/configmap.yaml
+  - services/user-service/service.yaml
+  - services/user-service/deployment.yaml
+  - services/book-service/serviceaccount.yaml
+  - services/book-service/configmap.yaml
+  - services/book-service/service.yaml
+  - services/book-service/deployment.yaml
+  - services/loan-service/serviceaccount.yaml
+  - services/loan-service/configmap.yaml
+  - services/loan-service/service.yaml
+  - services/loan-service/deployment.yaml
+  - postgres/configmap.yaml
+  - postgres/init-configmap.yaml
+  - postgres/service.yaml
+  - postgres/statefulset.yaml
+  - redis/service.yaml
+  - redis/pvc.yaml
+  - redis/deployment.yaml
+  - ingress/ingress.yaml
+  - ingress/network-policy.yaml
+  - ingress/pod-disruption-budget.yaml
