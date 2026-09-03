@@ -143,6 +143,21 @@ jobs:
       - name: Run health checks
         shell: bash
         run: |
-          kubectl run health-check --rm -i --restart=Never -n "$NAMESPACE" \
-            --image=curlimages/curl:8.10.1 -- \
+          kubectl delete pod health-check -n "$NAMESPACE" --ignore-not-found
+
+          kubectl run health-check \
+            --restart=Never \
+            -n "$NAMESPACE" \
+            --image=curlimages/curl:8.10.1 \
+            --command -- \
             sh -c 'set -e; curl -fsS http://user-service:8000/health; curl -fsS http://user-service:8000/health/ready; curl -fsS http://book-service:8001/health; curl -fsS http://book-service:8001/health/ready; curl -fsS http://loan-service:8002/health; curl -fsS http://loan-service:8002/health/ready; curl -fsS http://frontend:3000/health'
+
+          kubectl wait \
+            --for=jsonpath='{.status.phase}'=Succeeded \
+            pod/health-check \
+            -n "$NAMESPACE" \
+            --timeout=180s
+
+          kubectl logs health-check -n "$NAMESPACE"
+
+          kubectl delete pod health-check -n "$NAMESPACE"
