@@ -143,6 +143,6 @@ jobs:
       - name: Run health checks
         shell: bash
         run: |
-          kubectl run health-check --rm --restart=Never -n "$NAMESPACE" \
+          kubectl run health-check --rm -i --restart=Never -n "$NAMESPACE" \
             --image=curlimages/curl:8.10.1 -- \
             sh -c 'set -e; curl -fsS http://user-service:8000/health; curl -fsS http://user-service:8000/health/ready; curl -fsS http://book-service:8001/health; curl -fsS http://book-service:8001/health/ready; curl -fsS http://loan-service:8002/health; curl -fsS http://loan-service:8002/health/ready; curl -fsS http://frontend:3000/health'
