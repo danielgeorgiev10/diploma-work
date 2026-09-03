@@ -37,7 +37,7 @@ jobs:
 
       - name: Set image references
         id: images
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
           image_tag="${{ github.event.workflow_run.head_sha }}"
           echo "tag=$image_tag" >> "$GITHUB_OUTPUT"
@@ -75,7 +75,7 @@ jobs:
           tags: ${{ steps.images.outputs.frontend }}
 
       - name: Create runtime Secrets
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         env:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -113,7 +113,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Set Kubernetes image tags
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         env:
           IMAGE_TAG: ${{ steps.images.outputs.tag }}
         run: |
@@ -123,14 +123,14 @@ jobs:
           sed -i "s#image: library-frontend:.*#image: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:$IMAGE_TAG#" infra/kubernetes/frontend-deployment.yaml
 
       - name: Validate Kubernetes manifests
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: kubectl kustomize infra/kubernetes > /tmp/library-manifests.yaml
 
       - name: Deploy to Kubernetes
         run: kubectl apply -k infra/kubernetes
 
       - name: Wait for rollouts
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
           kubectl rollout status statefulset/postgres -n "$NAMESPACE" --timeout=5m
           kubectl rollout status deployment/redis -n "$NAMESPACE" --timeout=5m
@@ -140,7 +140,7 @@ jobs:
           kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=5m
 
       - name: Run health checks
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
           kubectl run health-check --rm --restart=Never -n "$NAMESPACE" \
             --image=curlimages/curl:8.10.1 -- \
