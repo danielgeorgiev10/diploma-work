@@ -72,7 +72,20 @@ const BooksManagementPage = () => {
   });
 
   useEffect(() => {
-    loadBooks();
+    const loadInitialBooks = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await bookService.listBooks(null, null);
+        setBooks(data);
+      } catch (err) {
+        setError(err.detail || 'Failed to load books');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialBooks();
   }, []);
 
   const loadBooks = async () => {
@@ -378,21 +391,21 @@ const LoansViewPage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadLoans();
-  }, []);
+    const loadInitialLoans = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await loanService.listLoans();
+        setLoans(data);
+      } catch (err) {
+        setError(err.detail || 'Failed to load loans');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const loadLoans = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const data = await loanService.listLoans();
-      setLoans(data);
-    } catch (err) {
-      setError(err.detail || 'Failed to load loans');
-    } finally {
-      setLoading(false);
-    }
-  };
+    loadInitialLoans();
+  }, []);
 
   return (
     <div className="loans-view-page">

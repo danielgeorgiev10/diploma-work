@@ -25,7 +25,19 @@ const AdminUsersPage = () => {
   };
 
   useEffect(() => {
-    loadUsers('');
+    const loadInitialUsers = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        setUsers(await userService.listUsers(null));
+      } catch (err) {
+        setError(getErrorMessage(err, 'Failed to load users'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialUsers();
   }, []);
 
   const showSuccess = (message) => {

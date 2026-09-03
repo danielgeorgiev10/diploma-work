@@ -64,7 +64,20 @@ const BooksPage = ({ userId }) => {
   const [borrowSuccess, setBorrowSuccess] = useState('');
 
   useEffect(() => {
-    loadBooks();
+    const loadInitialBooks = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await bookService.listBooks(null, null);
+        setBooks(data);
+      } catch (err) {
+        setError(err.detail || 'Failed to load books');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialBooks();
   }, []);
 
   const loadBooks = async () => {
@@ -197,7 +210,20 @@ const LoansPage = ({ userId }) => {
   const [returnSuccess, setReturnSuccess] = useState('');
 
   useEffect(() => {
-    loadLoans();
+    const loadInitialLoans = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await loanService.listLoans(userId);
+        setLoans(data);
+      } catch (err) {
+        setError(err.detail || 'Failed to load loans');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialLoans();
   }, []);
 
   const loadLoans = async () => {
