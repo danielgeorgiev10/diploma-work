@@ -224,7 +224,7 @@ const LoansPage = ({ userId }) => {
     };
 
     loadInitialLoans();
-  }, []);
+  }, [userId]);
 
   const loadLoans = async () => {
     try {
